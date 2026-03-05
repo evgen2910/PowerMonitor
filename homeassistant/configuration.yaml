@@ -1,0 +1,235 @@
+# ============================================================
+#  ESP32 Power Monitor — Home Assistant інтеграція
+#  Метод: REST sensor (HTTP polling)
+#
+#  Налаштування:
+#    1. Заміни 192.168.1.105 на IP свого пристрою
+#       (або використовуй powermon.local якщо mDNS працює)
+#    2. Додай цей файл до configuration.yaml або
+#       винеси в окремий файл через !include
+# ============================================================
+
+# -----------------------------------------------------------
+#  REST платформа — одне джерело для всіх сенсорів
+# -----------------------------------------------------------
+rest:
+  - resource: http://192.168.1.105/api/status
+    scan_interval: 10   # секунди між опитуваннями
+    headers:
+      Accept: application/json
+
+    # --- Binary sensors ---
+    binary_sensor:
+      - name: "Power Monitor - Живлення"
+        unique_id: power_monitor_power
+        value_template: "{{ value_json.power }}"
+        device_class: power
+        icon: mdi:lightning-bolt
+
+      - name: "Power Monitor - WiFi"
+        unique_id: power_monitor_wifi
+        value_template: "{{ value_json.wifi }}"
+        device_class: connectivity
+        icon: mdi:wifi
+
+      - name: "Power Monitor - Батарея низька"
+        unique_id: power_monitor_batt_low
+        value_template: "{{ value_json.batt_low }}"
+        device_class: battery
+        icon: mdi:battery-alert
+
+      - name: "Power Monitor - Зарядка батареї"
+        unique_id: power_monitor_batt_charging
+        value_template: "{{ value_json.batt_charging }}"
+        device_class: battery_charging
+        icon: mdi:battery-charging
+
+    # --- Sensors ---
+    sensor:
+      - name: "Power Monitor - Стан живлення"
+        unique_id: power_monitor_state
+        value_template: "{{ value_json.state }}"
+        icon: mdi:power-plug
+
+      - name: "Power Monitor - Напруга батареї"
+        unique_id: power_monitor_batt_v
+        value_template: "{{ value_json.batt_v }}"
+        unit_of_measurement: "V"
+        device_class: voltage
+        state_class: measurement
+        icon: mdi:battery
+
+      - name: "Power Monitor - Заряд батареї"
+        unique_id: power_monitor_batt_p
+        value_template: "{{ value_json.batt_p }}"
+        unit_of_measurement: "%"
+        device_class: battery
+        state_class: measurement
+        icon: mdi:battery-50
+
+      - name: "Power Monitor - Тривалість відключення"
+        unique_id: power_monitor_off_dur_sec
+        value_template: "{{ value_json.off_dur_sec }}"
+        unit_of_measurement: "s"
+        device_class: duration
+        state_class: measurement
+        icon: mdi:timer-off-outline
+
+      - name: "Power Monitor - Тривалість роботи"
+        unique_id: power_monitor_on_dur_sec
+        value_template: "{{ value_json.on_dur_sec }}"
+        unit_of_measurement: "s"
+        device_class: duration
+        state_class: measurement
+        icon: mdi:timer-outline
+
+      - name: "Power Monitor - Uptime"
+        unique_id: power_monitor_uptime_sec
+        value_template: "{{ value_json.uptime_sec }}"
+        unit_of_measurement: "s"
+        device_class: duration
+        state_class: total_increasing
+        icon: mdi:clock-outline
+
+      - name: "Power Monitor - WiFi сигнал"
+        unique_id: power_monitor_rssi
+        value_template: "{{ value_json.rssi }}"
+        unit_of_measurement: "dBm"
+        device_class: signal_strength
+        state_class: measurement
+        icon: mdi:wifi-strength-2
+
+      - name: "Power Monitor - WiFi сигнал %"
+        unique_id: power_monitor_rssi_pct
+        value_template: "{{ value_json.rssi_pct }}"
+        unit_of_measurement: "%"
+        state_class: measurement
+        icon: mdi:wifi
+
+      - name: "Power Monitor - Кількість відключень"
+        unique_id: power_monitor_outage_count
+        value_template: "{{ value_json.outage_count }}"
+        state_class: total_increasing
+        icon: mdi:counter
+
+      - name: "Power Monitor - IP адреса"
+        unique_id: power_monitor_ip
+        value_template: "{{ value_json.ip }}"
+        icon: mdi:ip-network
+
+      - name: "Power Monitor - Черга Telegram"
+        unique_id: power_monitor_tg_queue
+        value_template: "{{ value_json.queue }}"
+        icon: mdi:telegram
+
+
+# -----------------------------------------------------------
+#  Template sensors — додаткові обчислення
+# -----------------------------------------------------------
+template:
+  - sensor:
+      - name: "Power Monitor - Заряд батареї текст"
+        unique_id: power_monitor_batt_text
+        state: >
+          {% set p = states('sensor.power_monitor_zaryad_batareyi') | int(0) %}
+          {% if p >= 80 %} Повна
+          {% elif p >= 50 %} Добра
+          {% elif p >= 20 %} Низька
+          {% else %} Критична
+          {% endif %}
+        icon: >
+          {% set p = states('sensor.power_monitor_zaryad_batareyi') | int(0) %}
+          {% if p >= 80 %} mdi:battery-high
+          {% elif p >= 50 %} mdi:battery-medium
+          {% elif p >= 20 %} mdi:battery-low
+          {% else %} mdi:battery-alert
+          {% endif %}
+
+      - name: "Power Monitor - Тривалість відключення текст"
+        unique_id: power_monitor_off_dur_text
+        state: >
+          {% set s = states('sensor.power_monitor_tryvalist_vidklyuchennya') | int(0) %}
+          {% if s == 0 %} —
+          {% else %}
+            {% set d = (s // 86400) %}
+            {% set h = (s % 86400) // 3600 %}
+            {% set m = (s % 3600) // 60 %}
+            {% set sec = s % 60 %}
+            {% if d > 0 %}{{ d }}д {% endif %}
+            {% if h > 0 %}{{ h }}г {% endif %}
+            {% if m > 0 %}{{ m }}хв {% endif %}
+            {{ sec }}с
+          {% endif %}
+
+
+# -----------------------------------------------------------
+#  Автоматизації
+# -----------------------------------------------------------
+automation:
+  - id: power_monitor_off_alert
+    alias: "Живлення зникло"
+    description: "Сповіщення коли живлення зникло (резервний канал через HA)"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.power_monitor_zhivlennya
+        to: "off"
+    action:
+      - service: notify.mobile_app  # заміни на свій сервіс
+        data:
+          title: "⚡ Живлення зникло"
+          message: "Power Monitor не бачить живлення"
+
+  - id: power_monitor_on_alert
+    alias: "Живлення відновлено"
+    description: "Сповіщення коли живлення відновлено (резервний канал через HA)"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.power_monitor_zhivlennya
+        to: "on"
+        for:
+          seconds: 5
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "✅ Живлення відновлено"
+          message: >
+            Power Monitor: живлення є.
+            Батарея: {{ states('sensor.power_monitor_zaryad_batareyi') }}%
+
+  - id: power_monitor_batt_low_alert
+    alias: "Батарея Power Monitor розряджається"
+    trigger:
+      - platform: state
+        entity_id: binary_sensor.power_monitor_batareya_nyzka
+        to: "on"
+    action:
+      - service: notify.mobile_app
+        data:
+          title: "🔋 Батарея розряджається"
+          message: >
+            Power Monitor: {{ states('sensor.power_monitor_napruga_batareyi') }} В
+            ({{ states('sensor.power_monitor_zaryad_batareyi') }}%)
+
+
+# -----------------------------------------------------------
+#  Dashboard картка (Lovelace YAML)
+#  Додай у твій dashboard через Edit Dashboard → Add Card → Manual
+# -----------------------------------------------------------
+#
+# type: entities
+# title: ⚡ Power Monitor
+# entities:
+#   - entity: binary_sensor.power_monitor_zhivlennya
+#     name: Живлення
+#   - entity: sensor.power_monitor_napruga_batareyi
+#     name: Напруга батареї
+#   - entity: sensor.power_monitor_zaryad_batareyi
+#     name: Заряд батареї
+#   - entity: sensor.power_monitor_tryvalist_vidklyuchennya_tekst
+#     name: Тривалість відключення
+#   - entity: sensor.power_monitor_kilkist_vidklyuchen
+#     name: Відключень всього
+#   - entity: sensor.power_monitor_wifi_signal
+#     name: WiFi сигнал
+#   - entity: sensor.power_monitor_ip_adresa
+#     name: IP адреса
