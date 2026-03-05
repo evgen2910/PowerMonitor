@@ -4,6 +4,7 @@
 #include "TimeUtils.h"
 #include "TelegramManager.h"
 #include "PowerEvent.h"
+#include <time.h>
 
 // ---------------------------------------------------------------
 void PowerMonitor::applyPinConfig() {
@@ -150,6 +151,8 @@ void PowerMonitor::loop() {
 
                 if (!_power) {
                     _powerOffAt = millis();
+                    _outageCount++;
+                    _lastOffTs  = Time().unixNow();
                     Log().add("❌ Живлення ЗНИКЛО о " + ts);
 
                     // Зберігаємо момент зникнення в NVS — виживе навіть якщо батарея сяде
@@ -158,7 +161,7 @@ void PowerMonitor::loop() {
                     if (c.notify_power_off) {
                         msg  = "❌ *ЖИВЛЕННЯ ЗНИКЛО*\n";
                         msg += "📛 " + String(c.device_name) + "\n";
-                        msg += "🕐 " + Time().now();
+                        String ts = Time().now();
                         msg += battStr();
                         Tg().enqueue(msg);
                     }
@@ -166,6 +169,7 @@ void PowerMonitor::loop() {
                     _lastOffDuration = (_powerOffAt > 0) ? (millis() - _powerOffAt) : 0;
                     _powerOnAt  = millis();
                     _powerOffAt = 0;
+                    _lastOnTs   = Time().unixNow();
 
                     // Зберігаємо рядок часу зникнення ДО очищення
                     String offAt   = PwrEvt().offTimeStr();

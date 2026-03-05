@@ -42,7 +42,8 @@ void WiFiManager::begin() {
     if (!ok) ok = _tryConnect(c.wifi_ssid2, c.wifi_pass2);
 
     if (ok) {
-        _state = WiFiState::CONNECTED;
+        _state      = WiFiState::CONNECTED;
+        _retryCount = 0;
         String msg = "WiFi підключено: " + WiFi.SSID() +
                      "  IP: " + WiFi.localIP().toString();
         Log().add(msg);
@@ -50,6 +51,7 @@ void WiFiManager::begin() {
         _startMDNS();
         Time().sync();
     } else {
+        // Не вдалося при старті — одразу Captive Portal
         Log().add("WiFi: не вдалося підключитися → Captive Portal");
         startCaptivePortal();
     }
@@ -58,39 +60,90 @@ void WiFiManager::begin() {
 
 // ---------------------------------------------------------------
 void WiFiManager::loop() {
+
+    // ── CAPTIVE PORTAL ──────────────────────────────────────
+    // Обслуговуємо DNS, але також пробуємо перепідключитись
+    // кожні 3 хвилини — раптом роутер повернувся
     if (_state == WiFiState::CAPTIVE_PORTAL) {
         dns.processNextRequest();
+
+        // Якщо WiFi SSID взагалі не налаштований — нема чого пробувати
+        if (strlen(Cfg().cfg.wifi_ssid1) == 0 &&
+            strlen(Cfg().cfg.wifi_ssid2) == 0) return;
+
+        if (millis() - _lastAttempt < WIFI_RECONNECT_INTERVAL_MS) return;
+        _lastAttempt = millis();
+
+        Serial.println("[WiFi] Captive Portal: спроба підключення...");
+        dns.stop();
+        WiFi.softAPdisconnect(true);
+        delay(200);
+
+        _startSTA();
+        const Config& c = Cfg().cfg;
+        bool ok = _tryConnect(c.wifi_ssid1, c.wifi_pass1);
+        if (!ok) ok = _tryConnect(c.wifi_ssid2, c.wifi_pass2);
+
+        if (ok) {
+            _state      = WiFiState::CONNECTED;
+            _retryCount = 0;
+            Log().add("WiFi підключено (з Captive Portal): " + WiFi.SSID() +
+                      "  IP: " + WiFi.localIP().toString());
+            _startMDNS();
+            Time().sync();
+        } else {
+            Serial.println("[WiFi] Не вдалося, повертаємось до Captive Portal");
+            startCaptivePortal();   // перезапускаємо AP+DNS
+        }
         return;
     }
 
+    // ── CONNECTED ───────────────────────────────────────────
     if (_state == WiFiState::CONNECTED) {
         if (WiFi.status() != WL_CONNECTED) {
-            _state = WiFiState::DISCONNECTED;
-            Log().add("WiFi: з'єднання втрачено");
+            _state      = WiFiState::DISCONNECTED;
+            _retryCount = 0;
             _lastAttempt = millis();
+            Log().add("WiFi: з'єднання втрачено");
         }
-        checkAsyncScan();   // перевіряємо фоновий скан
+        checkAsyncScan();
         return;
     }
 
-    // DISCONNECTED — чекаємо 3 хв
-    if (millis() - _lastAttempt < WIFI_RECONNECT_INTERVAL_MS) return;
+    // ── DISCONNECTED ────────────────────────────────────────
+    // Інтервал між спробами: перші 3 рази — 30с, потім — 3 хв
+    uint32_t interval = (_retryCount < 3)
+                        ? 30000UL
+                        : WIFI_RECONNECT_INTERVAL_MS;
+
+    if (millis() - _lastAttempt < interval) return;
     _lastAttempt = millis();
 
-    Serial.println("[WiFi] Перепідключення...");
+    Serial.printf("[WiFi] Перепідключення (спроба %d)...\n", _retryCount + 1);
     _startSTA();
     const Config& c = Cfg().cfg;
     bool ok = _tryConnect(c.wifi_ssid1, c.wifi_pass1);
     if (!ok) ok = _tryConnect(c.wifi_ssid2, c.wifi_pass2);
 
     if (ok) {
-        _state = WiFiState::CONNECTED;
+        _state      = WiFiState::CONNECTED;
+        _retryCount = 0;
         Log().add("WiFi перепідключено: " + WiFi.SSID() +
                   "  IP: " + WiFi.localIP().toString());
         _startMDNS();
         Time().sync();
     } else {
-        Serial.println("[WiFi] Не вдалося, наступна спроба через 3 хв");
+        _retryCount++;
+        Serial.printf("[WiFi] Не вдалося (%d спроб)\n", _retryCount);
+
+        // Після 5 невдалих спроб — Captive Portal щоб можна було
+        // змінити налаштування якщо SSID/пароль стали неправильними
+        if (_retryCount >= 5) {
+            Log().add("WiFi: " + String(_retryCount) +
+                      " невдалих спроб → Captive Portal");
+            startCaptivePortal();
+            _retryCount = 0;
+        }
     }
 }
 
@@ -110,9 +163,11 @@ void WiFiManager::reconnectNow() {
     if (_state == WiFiState::CAPTIVE_PORTAL) {
         dns.stop();
         WiFi.softAPdisconnect(true);
+        delay(200);
     }
-    _state = WiFiState::DISCONNECTED;
-    _lastAttempt = 0;
+    _state       = WiFiState::DISCONNECTED;
+    _retryCount  = 0;
+    _lastAttempt = 0;   // підключитись негайно
 }
 
 void WiFiManager::restartMDNS() {

@@ -1,0 +1,10 @@
+{
+  "additionalFiles": "..\\..,..\\..,..\\..,..\\..,..\\..,..\\..,..\\..,..\\..,..\\..,..\\..,..\\..,..\\..,..\\..,..\\..,..\\..,..\\..,..\\..,..\\..,..\\..",
+  "builtInLibrariesFolders": "C:\\Users\\evgen\\AppData\\Local\\Arduino15\\libraries",
+  "compiler.optimization_flags": "-Os",
+  "customBuildProperties": "build.warn_data_percentage=75",
+  "fqbn": "esp32:esp32:nologo_esp32c3_super_mini:UploadSpeed=921600,USBMode=hwcdc,CDCOnBoot=default,CPUFreq=160,FlashFreq=80,FlashMode=qio,PartitionScheme=default,DebugLevel=none,EraseFlash=none,JTAGAdapter=default",
+  "hardwareFolders": "c:\\Users\\evgen\\AppData\\Local\\Arduino15\\packages",
+  "otherLibrariesFolders": "c:\\Users\\evgen\\OneDrive\\Documents\\Arduino\\libraries",
+  "sketchLocation": "D:\\Desktop\\power_monitor\\power_monitor"
+}

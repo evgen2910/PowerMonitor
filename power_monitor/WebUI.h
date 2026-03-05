@@ -19,7 +19,7 @@ private:
     void _handleConfig();
     void _handleSave();
     void _handleStatus();
-    void _handleScan(); 
+    void _handleScan();           // NEW: /api/scan
     void _handleLogs();
     void _handleGetChatId();
     void _handleSendTest();

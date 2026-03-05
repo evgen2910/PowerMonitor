@@ -49,8 +49,9 @@ private:
     void  _startMDNS();
     void  _processScanResults(int n);
 
-    WiFiState  _state       = WiFiState::DISCONNECTED;
-    uint32_t   _lastAttempt = 0;
+    WiFiState  _state        = WiFiState::DISCONNECTED;
+    uint32_t   _lastAttempt  = 0;
+    uint8_t    _retryCount   = 0;   // лічильник невдалих спроб підключення
 
     ScannedNet _nets[WIFI_SCAN_MAX];
     int        _scanCount   = 0;

@@ -20,6 +20,9 @@ public:
         return millis() - _powerOnAt;
     }
     uint32_t lastOffDurationMs() const { return _lastOffDuration; }
+    uint32_t outageCount()       const { return _outageCount; }    // лічильник відключень
+    time_t   lastOffTimestamp()  const { return _lastOffTs; }      // unix ts останнього відключення
+    time_t   lastOnTimestamp()   const { return _lastOnTs; }       // unix ts останнього відновлення
 
     // --- Батарея ---
     float    battVoltage()    const { return _battV; }     // В
@@ -43,6 +46,9 @@ private:
     uint32_t _powerOffAt    = 0;
     uint32_t _powerOnAt     = 0;
     uint32_t _lastOffDuration = 0;
+    uint32_t _outageCount    = 0;    // лічильник відключень за сесію
+    time_t   _lastOffTs      = 0;    // unix timestamp останнього зникнення
+    time_t   _lastOnTs       = 0;    // unix timestamp останнього відновлення
 
     // Батарея
     float    _battV         = 0.0f;

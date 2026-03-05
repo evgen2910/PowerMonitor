@@ -252,24 +252,58 @@ String WebUI::_foot(){return String(FPSTR(JS_LIVE))+"</body></html>";}
 //  /api/status
 // ============================================================
 void WebUI::_handleStatus(){
-    String j;j.reserve(600);
+    String j;j.reserve(800);
+
+    // --- Живлення ---
+    bool   pwr    = PM().powerPresent();
+    uint32_t offMs = PM().offDurationMs();
+    uint32_t onMs  = PM().onDurationMs();
+
+    // RSSI → відсотки (−50дБм=100%, −100дБм=0%)
+    int rssi    = WM().isConnected() ? WM().rssi() : -100;
+    int rssiPct = WM().isConnected() ? constrain((rssi + 100) * 2, 0, 100) : 0;
+
     j+='{';
-    j+="\"power\":"      +String(PM().powerPresent()?"true":"false")+',';
-    j+="\"wifi\":"       +String(WM().isConnected() ?"true":"false")+',';
+    // Базові поля (сумісні зі старим форматом)
+    j+="\"power\":"      +String(pwr?"true":"false")+',';
+    j+="\"state\":\""   +String(pwr?"on":"off")+"\",";       // HA binary_sensor
+    j+="\"wifi\":"       +String(WM().isConnected()?"true":"false")+',';
     j+="\"ssid\":\""    +_esc(WM().ssid())+"\",";
     j+="\"ip\":\""      +WM().ip()+"\",";
-    j+="\"rssi\":"      +String(WM().isConnected()?WM().rssi():0)+',';
+    j+="\"rssi\":"      +String(rssi)+',';
+    j+="\"rssi_pct\":"  +String(rssiPct)+',';                // 0-100%
     j+="\"ntp\":"       +String(Time().isSynced()?"true":"false")+',';
     j+="\"time\":\""   +Time().now()+"\",";
     j+="\"uptime\":\""  +Time().duration(millis())+"\",";
+    j+="\"uptime_sec\":" +String(millis()/1000UL)+',';       // числове для графіків
+
+    // Telegram
     j+="\"queue\":"     +String(Tg().queueCount())+',';
     j+="\"total\":"     +String(Tg().totalSent())+',';
     j+="\"delivered\":" +String(Tg().totalDelivered())+',';
-    uint32_t offMs = PM().offDurationMs();
-    j+="\"off_dur\":\"" +((!PM().powerPresent() && offMs>0) ? Time().duration(offMs) : String(""))+"\",";
-    j+="\"batt_en\":"   +String(PM().battEnabled()?"true":"false")+',';
-    j+="\"batt_v\":\""  +String(PM().battVoltage(),2)+"\",";
-    j+="\"batt_p\":"    +String(PM().battPercent())+',';
+
+    // Тривалість відключення (рядок + секунди)
+    j+="\"off_dur\":\"" +((!pwr && offMs>0) ? Time().duration(offMs) : String(""))+"\",";
+    j+="\"off_dur_sec\":" +String(!pwr && offMs>0 ? offMs/1000UL : 0UL)+',';
+    j+="\"on_dur_sec\":"  +String(pwr  && onMs>0  ?  onMs/1000UL : 0UL)+',';
+
+    // Статистика відключень
+    j+="\"outage_count\":" +String(PM().outageCount())+',';
+    j+="\"last_off_ts\":"  +String((uint32_t)PM().lastOffTimestamp())+',';  // unix ts
+    j+="\"last_on_ts\":"   +String((uint32_t)PM().lastOnTimestamp())+',';
+
+    // Батарея
+    bool   battEn = PM().battEnabled();
+    float  battV  = PM().battVoltage();
+    int    battP  = PM().battPercent();
+    bool   charging = pwr && battEn;   // живлення є → батарея (ймовірно) заряджається
+    j+="\"batt_en\":"      +String(battEn?"true":"false")+',';
+    j+="\"batt_v\":"       +String(battV,2)+',';             // число, не рядок
+    j+="\"batt_v_str\":\"" +String(battV,2)+"\",";           // рядок для сумісності
+    j+="\"batt_p\":"       +String(battP)+',';
+    j+="\"batt_low\":"     +String(PM().battLow()?"true":"false")+',';
+    j+="\"batt_charging\":" +String(charging?"true":"false")+',';
+
     j+="\"error\":\"\"";
     j+='}';
     _srv.sendHeader("Cache-Control","no-cache, no-store");
@@ -343,7 +377,6 @@ void WebUI::_handleRoot(){
 
     h+="<div class='card'><div class='card-title'>🎮 Дії</div><div class='actions'>";
     h+="<a href='/test'       class='btn btn-p'>📨 Тест Telegram</a>";
-   // h+="<a href='/getchatid'  class='btn btn-s'>🔍 Chat ID авто</a>";
     h+="<a href='/config'     class='btn btn-s'>⚙️ Налаштування</a>";
     h+="<a href='/logs'       class='btn btn-s'>📋 Журнал</a>";
     h+="<a href='/reboot'     class='btn btn-y' onclick=\"return confirm('Перезавантажити?')\">🔄 Reboot</a>";
@@ -477,7 +510,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     h+="</select><span class='hint'>Визначає який Chat ID використовується для відправки</span></div>";
     h+="<div class='fg'>"
        "<label>&nbsp;</label>"
-       "<a href='/getchatid' class='btn btn-s' style='width:100%;box-sizing:border-box'>🔍 Визначення Chat ID</a>"
+       "<a href='/getchatid' class='btn btn-s' style='width:100%;box-sizing:border-box'>🔍 Авто-визначення Chat ID</a>"
        "<span class='hint'>Надішліть боту /start, потім натисніть</span>"
        "</div></div>";
     h+="<hr class='divider'><div class='grid3'>";

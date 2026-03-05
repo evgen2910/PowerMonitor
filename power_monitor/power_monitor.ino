@@ -1,5 +1,5 @@
 /*
- * ESP32 Power Monitor v5.0
+ * ESP32 Power Monitor v1.8.0
  * ============================================================
  * Підтримувані плати:
  *   ESP32 classic (WROOM / WROVER / DevKit)  — за замовчуванням
