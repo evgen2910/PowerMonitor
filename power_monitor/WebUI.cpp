@@ -592,9 +592,9 @@ document.addEventListener('DOMContentLoaded',()=>{
        "<input type='number' name='batt_empty' id='batt_empty' value='"+String(c.batt_empty_v,2)+"' step='0.1' min='1' style='color:#d29922'>"
        "<span class='hint'>Встановлюється по cells</span></div>";
     // V_pin preview
-    h+="<div class='fg'><label>Розрахунок V_pin @ full</label>"
+/*    h+="<div class='fg'><label>Розрахунок V_pin @ full</label>"
        "<div id='batt_vpin_calc' style='padding:8px 11px;background:#0d1117;border:1px solid #30363d;border-radius:6px;font-size:13px;color:#58a6ff'></div>"
-       "<span class='hint'>Макс. 3.3В на GPIO!</span></div>";
+       "<span class='hint'>Макс. 3.3В на GPIO!</span></div>";  */
     h+="</div>"; // grid3 row2
     h+="<div style='margin-top:8px'><label class='tgl'><input type='checkbox' name='nbatt'"+_checked(c.notify_batt_low)+"><span class='tgl-sl'></span><span class='tgl-txt'>Сповіщення &laquo;батарея &le; 20%&raquo;</span></label></div>";
     h+="</div>"; // batt_cfg
