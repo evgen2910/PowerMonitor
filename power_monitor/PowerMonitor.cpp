@@ -161,7 +161,7 @@ void PowerMonitor::loop() {
                     if (c.notify_power_off) {
                         msg  = "❌ *ЖИВЛЕННЯ ЗНИКЛО*\n";
                         msg += "📛 " + String(c.device_name) + "\n";
-                        String ts = Time().now();
+                        msg += "🕐 " + Time().now();
                         msg += battStr();
                         Tg().enqueue(msg);
                     }
